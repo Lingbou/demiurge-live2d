@@ -57,6 +57,31 @@ export function App() {
   };
 
   useEffect(() => {
+    const unlockAudio = () => {
+      void unlockBrowserAudio(audioContextRef, {
+        onUnlocked: () => {
+          setStatus((current) => current === "audio locked" || current === "audio unavailable" ? "surface connected" : current);
+          reportSurfaceStatus({ audioUnlocked: true, latestError: null });
+        },
+        onLocked: (message) => {
+          setStatus(message);
+          reportSurfaceStatus({ audioUnlocked: false, latestError: message });
+        },
+      });
+    };
+
+    document.addEventListener("pointerdown", unlockAudio);
+    document.addEventListener("keydown", unlockAudio);
+    document.addEventListener("touchstart", unlockAudio);
+
+    return () => {
+      document.removeEventListener("pointerdown", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     fetch("/v1/surface-config")
       .then((response) => response.json())
@@ -267,7 +292,10 @@ async function playBase64Wav(
 ) {
   try {
     const audioContext = getAudioContext(input.audioContextRef);
-    await audioContext.resume();
+    const audioReady = await resumeAudioContext(audioContext);
+    if (!audioReady) {
+      throw new Error("audio locked");
+    }
     const bytes = Uint8Array.from(window.atob(base64Audio), (character) => character.charCodeAt(0));
     const audioBuffer = await audioContext.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
     const source = audioContext.createBufferSource();
@@ -299,6 +327,48 @@ async function playBase64Wav(
   }
 }
 
+async function unlockBrowserAudio(
+  audioContextRef: MutableRefObject<AudioContext | null>,
+  input: {
+    onUnlocked(): void;
+    onLocked(message: string): void;
+  },
+) {
+  let audioContext: AudioContext;
+  try {
+    audioContext = getAudioContext(audioContextRef);
+  } catch {
+    input.onLocked("audio unavailable");
+    return;
+  }
+
+  const audioReady = await resumeAudioContext(audioContext);
+  if (audioReady) {
+    input.onUnlocked();
+    return;
+  }
+
+  input.onLocked("audio locked");
+}
+
+async function resumeAudioContext(audioContext: AudioContext, timeoutMs = 1200) {
+  const currentState = () => audioContext.state as AudioContextState;
+
+  if (currentState() === "running") {
+    return true;
+  }
+
+  const resumed = await Promise.race([
+    audioContext.resume().then(
+      () => true,
+      () => false,
+    ),
+    new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), timeoutMs)),
+  ]);
+
+  return resumed && currentState() === "running";
+}
+
 function driveMouthFromAnalyser(
   analyser: AnalyserNode,
   model: Live2DDisplayModel | null,
@@ -328,7 +398,11 @@ function stopMouth(model: Live2DDisplayModel | null, timerRef: MutableRefObject<
 
 function getAudioContext(audioContextRef: MutableRefObject<AudioContext | null>): AudioContext {
   if (!audioContextRef.current || audioContextRef.current.state === "closed") {
-    audioContextRef.current = new AudioContext();
+    const AudioContextConstructor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      throw new Error("audio unavailable");
+    }
+    audioContextRef.current = new AudioContextConstructor();
   }
   return audioContextRef.current;
 }
