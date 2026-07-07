@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { loadLive2DConfigFromObject, Live2DModel } from "../src/server/live2dModel";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { loadLive2DConfigFromFile, loadLive2DConfigFromObject, Live2DModel } from "../src/server/live2dModel";
 
 describe("Live2D model config", () => {
+  it("loads the bundled Cyrene model as the default surface model", () => {
+    const config = loadLive2DConfigFromFile(path.join(process.cwd(), "config/live2d.config.json"));
+    const model = config.models.find((candidate) => candidate.name === config.defaultModel);
+    expect(config.defaultModel).toBe("cyrene");
+    expect(model?.url).toBe("/live2d-models/Cyrene/model0.json");
+
+    const modelFile = path.join(process.cwd(), "public", ...model!.url.split("/").filter(Boolean).map(decodeURIComponent));
+    expect(existsSync(modelFile)).toBe(true);
+
+    const modelJson = JSON.parse(readFileSync(modelFile, "utf8")) as {
+      FileReferences: { Expressions: Array<{ Name: string; File: string }> };
+    };
+    const expressionCount = modelJson.FileReferences.Expressions.length;
+    expect(modelJson.FileReferences.Expressions.map((expression) => expression.Name)).toContain("星星眼");
+    expect(Object.values(model?.emotionMap ?? {}).every((expressionId) => expressionId < expressionCount)).toBe(true);
+    for (const expression of modelJson.FileReferences.Expressions) {
+      expect(existsSync(path.join(path.dirname(modelFile), expression.File))).toBe(true);
+    }
+  });
+
   it("loads emotion tags from an Open-LLM-VTuber style model_dict", () => {
     const config = loadLive2DConfigFromObject({
       models: [

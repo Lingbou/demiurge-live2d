@@ -1,0 +1,52 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "爱莉希雅.moc3",
+		"Textures": [
+			"爱莉希雅.8192/texture_00.png",
+			"爱莉希雅.8192/texture_01.png",
+			"爱莉希雅.8192/texture_02.png"
+		],
+		"Physics": "爱莉希雅.physics3.json",
+		"DisplayInfo": "爱莉希雅.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "neutral",
+				"File": "neutral.exp3.json"
+			},
+			{
+				"Name": "staff",
+				"File": "expression16.exp3.json"
+			},
+			{
+				"Name": "wave",
+				"File": "expression17.exp3.json"
+			},
+			{
+				"Name": "heart",
+				"File": "expression18.exp3.json"
+			},
+			{
+				"Name": "hand_on_chest",
+				"File": "expression19.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	]
+}
